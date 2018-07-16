@@ -13,16 +13,16 @@ That's a POC, it's not mean to be a solution, just a brainstorm about possibilit
 
 The handshake
 
-[handshare](img/handshake.png)
+![handshake](img/handshake.png)
 
 Updating data
 
-[update](img/update.png)
+![update](img/update.png)
 
 ## Code structure
 
-- on client side the fun is in MessageListener.js, MessageSender.js and bind together in DataStore.js
-- on server side it's in DataStore.js
+- on client side the fun is in [MessageListener](public/MessageListener.js), [MessageSender](public/MessageSender.js) and bind together in [DataStorage](public/DataStorage.js)
+- on server side it's in [DataStore](server/DataStore.js)
 - the tables are defined and initialised in router.js
 - views/ contain the html templates for the table screens
 - node.js/express/pug on server side
