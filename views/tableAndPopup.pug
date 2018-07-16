@@ -1,0 +1,45 @@
+html
+  include includes/head.pug
+  body
+    
+    #detail.modal
+      .modal-content
+        h4 Detail
+        each val, key in columns
+          .row
+            .col.s6= val.title
+            .col.s6(data-field=key,data-type=val.type)
+      .modal-footer
+        button#cancel.modal-action.waves-effect.btn-flat Cancel
+        button#ok.modal-action.waves-effect.btn-flat.modal-close Ok
+        button#delete.modal-action.waves-effect.btn-flat Delete
+        button#edit.modal-action.waves-effect.btn-flat Edit
+        button#save.modal-action.waves-effect.btn-flat Save
+      #block.modal-overlay(style="height: auto; display: block; padding-top: 10%;")
+        .loader
+          .preloader-wrapper.active
+            .spinner-layer.spinner-yellow-only
+              .circle-clipper.left
+                .circle
+              .gap-patch
+                .circle
+              .circle-clipper.right
+                .circle
+
+    include includes/banner.pug
+
+    .container
+      .section
+        .row
+          .col.s12
+            table.highlight(data-source=type)
+              thead
+                tr
+                  each val, key in columns
+                    th(data-field=key) #{val.title}
+              tbody
+        .row.center-align
+          .col.s12
+            button#new.waves-effect.waves-light.orange.btn New #{type}
+
+    include includes/footer.pug
