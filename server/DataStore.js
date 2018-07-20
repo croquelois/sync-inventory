@@ -1,10 +1,11 @@
 /* jshint esversion:6, node:true, loopfunc:true, undef: true, unused: true, sub:true */
 "use strict";
+const uuidv4 = require('uuid/v4');
+let redis = require('redis').createClient();
+redis.on("error", err => console.log(err));
 
 module.exports = function(app, title, type, columns){
-  let db = {};
   let clients = [];
-  let id = 1;
 
   function stream(req,res){
     let messageCount = 0;
@@ -20,10 +21,33 @@ module.exports = function(app, title, type, columns){
       client.alive = false;
       if(!src)
         return;
-      Object.keys(db).map(key => db[key]).filter(val => val.lock == client.src).map(val => val.id).forEach(id => {
-        db[id].lock = false;
-        clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"unlock",id:id,src}));
-      });
+      function freeLock(cursor, cb){
+        cb = cb || (()=>{});
+        redis.hscan("datastore:lock:"+type, cursor, function(err, data){
+          if(err){
+            console.log("Reddis error: ", err);
+            return cb(err);
+          }
+          let cursor = data[0];
+          let ids = data[1].filter((d,i) => !(i%2));
+          let srcs = data[1].filter((d,i) => (i%2));
+          let locks = ids.map((id,i) => ({id,src:srcs[i]}));
+          locks.filter(o => o.src==client.src).forEach(function(o){
+            let {src,id} = o;
+            redis.hdel("datastore:lock:"+type, id, (err) => {
+              if(err){
+                console.log("Reddis error: ", err);
+                return res.status(500).send(err);
+              }
+              clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"unlock",id,src}));
+            });
+          });
+          if(cursor == "0")
+            return cb();
+          freeLock(cursor);
+        });
+      }
+      freeLock("0");
     });
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -32,7 +56,41 @@ module.exports = function(app, title, type, columns){
       'Transfer-Encoding': 'chunked'
     });
     res.write('\n');
-    Object.keys(db).map(key => db[key]).forEach(val => writeMessage({type:"new",id:val.id,data:val.data,lock:val.lock}));
+    function scanData(cursor, cb){
+      cb = cb || (()=>{});
+      redis.hscan("datastore:"+type, cursor, function(err, data){
+        if(err){
+          console.log("Reddis error: ", err);
+          return cb(err);
+        }
+        let cursor = data[0];
+        let ids = data[1].filter((d,i) => !(i%2));
+        let datas = data[1].filter((d,i) => (i%2)).map(val => JSON.parse(val));
+        datas.forEach((data,i) => data.id = ids[i]);
+        datas.forEach(data => writeMessage({type:"new",id:data.id,data}));
+        if(cursor == "0")
+          return cb();
+        scanData(cursor);
+      });
+    }
+    function scanLock(cursor, cb){
+      cb = cb || (()=>{});
+      redis.hscan("datastore:lock:"+type, cursor, function(err, data){
+        if(err){
+          console.log("Reddis error: ", err);
+          return cb(err);
+        }
+        let cursor = data[0];
+        let ids = data[1].filter((d,i) => !(i%2));
+        let srcs = data[1].filter((d,i) => (i%2));
+        srcs.forEach((src,i) => writeMessage({type:"lock",id:ids[i],src}));
+        if(cursor == "0")
+          return cb();
+        scanLock(cursor);
+      });
+    }
+    scanData("0");
+    scanLock("0");
   }
 
   function lock(req, res){
@@ -40,10 +98,13 @@ module.exports = function(app, title, type, columns){
     let id = req.body["id"];
     if(!src)
       return res.status(500).send("invalid source id");
-    if(!db[id])
-      return res.status(500).send("unknow id");
-    db[id].lock = src || true;
-    clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"lock",id,src}));
+    redis.hset("datastore:lock:"+type, id, src, (err) => {
+      if(err){
+        console.log("Reddis error: ", err);
+        return res.status(500).send(err);
+      }
+      clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"lock",id,src}));
+    });
     return res.status(200).send("ok");
   }
 
@@ -52,10 +113,13 @@ module.exports = function(app, title, type, columns){
     if(!src)
       return res.status(500).send("invalid source id");
     let id = req.body["id"];
-    if(!db[id])
-      return res.status(500).send("unknow id");
-    db[id].lock = false;
-    clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"unlock",id,src}));
+    redis.hdel("datastore:lock:"+type, id, (err) => {
+      if(err){
+        console.log("Reddis error: ", err);
+        return res.status(500).send(err);
+      }
+      clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"unlock",id,src}));
+    });
     return res.status(200).send("ok");
   }
 
@@ -66,26 +130,34 @@ module.exports = function(app, title, type, columns){
       return res.status(500).send("need data");
     if(!data.id)
       return res.status(500).send("need data.id");
-    if(!db[data.id])
-      db[data.id] = {id:data.id,data:data,lock:false};
-    else
-      db[data.id].data = data;
-    clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"update",data,src}));
-    return res.status(200).send("ok");
+    let id = data.id;
+    delete data.id;
+    redis.hset("datastore:"+type, id, JSON.stringify(data), (err) => {
+      if(err){
+        console.log("Reddis error: ", err);
+        return res.status(500).send(err);
+      }
+      data.id = id;
+      clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"update",data,src}));
+      return res.status(200).send("ok");
+    });
   }
 
   function getId(req, res){
-    return res.status(200).send({id:id++});
+    return res.status(200).send({id:uuidv4()});
   }
 
   function del(req, res){
     let src = req.body["src"];
     let id = req.body["id"];
-    if(!db[id])
-      return res.status(500).send("unknow id");
-    delete db[id];
-    clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"delete",id,src}));
-    return res.status(200).send("ok");
+    redis.hdel("datastore:"+type, id, (err, nb) => {
+      if(err)
+        return res.status(500).send(err);
+      if(!nb)
+        return res.status(500).send("unknow id");
+      clients.filter(c => c.alive).forEach(c => c.writeMessage({type:"delete",id,src}));
+      return res.status(200).send("ok");
+    });
   }
 
   function addPost(action,fct){
@@ -118,7 +190,6 @@ module.exports = function(app, title, type, columns){
   addPost("del", del);
   app.get("/"+type, function(req,res){ res.render("tableAndPopup", {title, type, columns}); });
   return function(data){
-    data.id = id++;
-    db[data.id] = {id:data.id,data,lock:false};
+    redis.hset("datastore:"+type, uuidv4(), JSON.stringify(data), () => {});
   };
 };
