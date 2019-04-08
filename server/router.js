@@ -1,30 +1,32 @@
 /* jshint esversion:6, node:true, loopfunc:true, undef: true, unused: true, sub:true */
 "use strict";
-let DataStore = require("./DataStore");
+const useInMemory = true;
+let DataStore = require(useInMemory ? "./DataStoreLocal" : "./DataStore");
 
-module.exports = function(app){
+module.exports = function(app, clients){
   
-  let products = DataStore(app, "Products", "product", {
+  let products = DataStore(app, clients, "Products", "product", {
     "name": {title:"Name",type:"string"},
     "type": {title:"Type",type:"choice:Fruit,Vegetable,Bread,Meat"}
   });
   
-  let storage = DataStore(app, "Storages", "storage", {
+  let storage = DataStore(app, clients, "Storages", "storage", {
     "name": {title:"Name",type:"string"},
-    "temperature": {title:"Temperature",type:"double"}
+    "temperature": {title:"Temperature",type:"double"},
+    "availability": {title:"Availability",type:"percent"},
   });
   
-  let item = DataStore(app, "Items", "item", {
+  let item = DataStore(app, clients, "Items", "item", {
     "product": {title:"Product",type:"ref:product"},
     "storage": {title:"Storage",type:"ref:storage"},
-    "amount": {title:"Amount",type:"doulbe"},
+    "amount": {title:"Amount",type:"integer"},
     "expiration": {title:"Expiration date",type:"string"},
   });
 
   app.get('*', function(req, res){ res.status(404).send({ title: 'Page Not Found'}); });
   
   let firstSetup = false;
-  if(firstSetup){
+  if(useInMemory || firstSetup){
     products({name:"Banana", type:"Fruit"});
     products({name:"Pineapple", type:"Fruit"});
     products({name:"Apple", type:"Fruit"});
