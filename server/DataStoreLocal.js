@@ -58,10 +58,6 @@ module.exports = function(app, clients, title, type, columns){
     return res.status(200).send("ok");
   }
 
-  function getId(req, res){
-    return res.status(200).send({id:uuidv4()});
-  }
-
   function del(req, res){
     let src = req.body["src"];
     let id = req.body["id"];
@@ -86,7 +82,6 @@ module.exports = function(app, clients, title, type, columns){
   
   addPost("lock", lock);
   addPost("unlock", unlock);
-  addPost("getId", getId);
   addPost("send", send);
   addPost("del", del);
   app.get("/"+type, function(req,res){ res.render("tableAndPopup", {title, type, columns}); });
