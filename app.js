@@ -23,7 +23,8 @@ app.use(function (error, req, res, next) {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
-require('./server/router')(app);
+let clients = require('./server/ClientStream')(app);
+require('./server/router')(app, clients);
 
 http.createServer(app).listen(app.get('port'), function(){
   console.log('Server listening on port ' + app.get('port'));

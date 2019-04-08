@@ -1,5 +1,5 @@
 /* jshint esversion:6, loopfunc:true, undef: true, unused: true, sub:true */
-/* globals $, Materialize, console, messageListener, MessageSender */
+/* globals $, Materialize, MessageSender */
 /* exported DataStorage */
 let DataStorage = (function(){
 "use strict";
@@ -9,7 +9,7 @@ function getHeaders(table){
               .map(div => $(div).attr("data-field") || $(div).text());
 }
 
-function DataStorage(url,type,table,popup,newBtn,map){
+function DataStorage(url, messageListener, itemtype, table, popup, newBtn ,map){
   let headers = getHeaders(table);
   popup.modal({ dismissible: false });
   let body = table.children("tbody");
@@ -19,7 +19,7 @@ function DataStorage(url,type,table,popup,newBtn,map){
   let autocomplete = {};
   map = map || ((data,h,v) => (v===undefined?data[h]:data[h]=v));
   body.empty();
-  let messageSender = new MessageSender(url + "/" + type);
+  let messageSender = new MessageSender(messageListener.id, messageListener.grpId, url + "/" + itemtype);
 
   function error(msg){
     Materialize.toast('error: ' + msg, 3000, 'rounded red');
@@ -62,6 +62,18 @@ function DataStorage(url,type,table,popup,newBtn,map){
             data: autocomplete[tmp[1]](tmp[2]),
             limit: 20
           });
+      }else if(type == "percent"){
+        let input = $("<input>").val(text);
+        div.append(input);
+        input.change(() => input.val((idx, old) => old.replace(/[^\-0-9\.]/g, '') + '%'));
+      }else if(type == "double"){
+        let input = $("<input>").val(text);
+        div.append(input);
+        input.change(() => input.val((idx, old) => old.replace(/[^\-0-9\.]/g, '')));
+      }else if(type == "integer"){
+        let input = $("<input>").val(text);
+        div.append(input);
+        input.change(() => input.val((idx, old) => old.replace(/[^\-0-9]/g, '')));
       }else{
         div.append($("<input>").val(text));
       }
@@ -159,19 +171,19 @@ function DataStorage(url,type,table,popup,newBtn,map){
       if(tmp)
         map[tmp[1]] = true;
     });
-    Object.keys(map).forEach(function(type){
+    Object.keys(map).forEach(function(itemtype){
       let store = {};
-      messageListener(url + "/" + type + "/stream", null, function(type,id,data,lock) {
+      messageListener.listen(itemtype, function(type,action,id,data) {
         let info = store[id];
         if(!info && data)
           info = store[id] = {id:id};
-        if(type == "new" || type == "update"){
+        if(action == "new" || action == "update"){
           info.data = data;
-        }else if(type == "delete"){
+        }else if(action == "delete"){
           delete store[id];
         }
       });
-      autocomplete[type] = function(field){
+      autocomplete[itemtype] = function(field){
         let map = {};
         Object.keys(store).forEach(k => map[store[k].data[field]]=null);
         return map;
@@ -229,7 +241,7 @@ function DataStorage(url,type,table,popup,newBtn,map){
       return;
 
     block();
-    messageSender.delete(inPopup.id, function(err){
+    messageSender.remove(inPopup.id, function(err){
       if(err) return unblockWithError(err);
       unblock();
       delete store[inPopup.id];
@@ -264,53 +276,51 @@ function DataStorage(url,type,table,popup,newBtn,map){
     div2input();
   });
 
-  messageSender.init(function(err, myId){
-    if(err) return error(err);
-    messageListener(url + "/" + type + "/stream", myId, function(type,id,data,lock) {
-      let info = store[id];
-      let tr = info && info.tr;
-      if(!info && data){
-        tr = $("<tr>").attr("id",id);
-        body.append(tr);
-        tr.click(clickOnCell);
-        info = store[id] = {id:id,tr};
+  messageListener.listen(itemtype, function(action,id,data,lock) {
+    console.log(action, id, data, lock);
+    let info = store[id];
+    let tr = info && info.tr;
+    if(!info && data){
+      tr = $("<tr>").attr("id",id);
+      body.append(tr);
+      tr.click(clickOnCell);
+      info = store[id] = {id:id,tr};
+    }
+    if(action == "new" || action == "update"){
+      info.data = data;
+      updateRow(info);
+      if(inPopup == info) feedPopup();
+    }else if(action == "delete"){
+      delete store[id];
+      if(tr)
+        tr.remove();
+      if(inPopup == info){
+        popup.find("#edit").hide();
+        popup.find("#save").hide();
+        popup.find("#delete").hide();
+        popup.addClass("locked");
       }
-      if(type == "new" || type == "update"){
-        info.data = data;
-        updateRow(info);
-        if(inPopup == info) feedPopup();
-      }else if(type == "delete"){
-        delete store[id];
-        if(tr)
-          tr.remove();
-        if(inPopup == info){
-          popup.find("#edit").hide();
-          popup.find("#save").hide();
-          popup.find("#delete").hide();
-          popup.addClass("locked");
+    }
+    if(action == "lock" || lock){
+      if(tr)
+        tr.addClass("locked");
+      if(inPopup == info){
+        popup.addClass("locked");
+        popup.find("#edit").hide();
+        popup.find("#delete").hide();
+        popup.find("#save").hide();
+      }
+    }
+    if(action == "unlock"){
+      if(tr)
+        tr.removeClass("locked");
+      if(inPopup == info){
+        if(popupMode == "read"){
+          popup.removeClass("locked");
+          popup.find("#edit").show();
         }
       }
-      if(type == "lock" || lock){
-        if(tr)
-          tr.addClass("locked");
-        if(inPopup == info){
-          popup.addClass("locked");
-          popup.find("#edit").hide();
-          popup.find("#delete").hide();
-          popup.find("#save").hide();
-        }
-      }
-      if(type == "unlock"){
-        if(tr)
-          tr.removeClass("locked");
-        if(inPopup == info){
-          if(popupMode == "read"){
-            popup.removeClass("locked");
-            popup.find("#edit").show();
-          }
-        }
-      }
-    });
+    }
   });
 }
 
