@@ -1,10 +1,33 @@
-/* jshint esversion:6, node:true, loopfunc:true, undef: true, unused: true, sub:true */
+/* jshint esversion:9, node:true, loopfunc:true, undef: true, unused: true, sub:true */
 "use strict";
 const uuidv4 = require('uuid/v4');
 let redis = require('redis').createClient();
 redis.on("error", err => console.log(err));
 
+function hset(hash, key, val){
+  return new Promise(function(resolve, reject){
+    redis.hset(hash, key, val, (err) => err ? reject(err) : resolve());
+  });
+}
+
+function hdel(hash, key){
+  return new Promise(function(resolve, reject){
+    redis.hdel(hash, key, (err) => err ? reject(err) : resolve());
+  });
+}
+
 module.exports = function(app, clients, title, type, columns){
+  let onUpdateFct = [];
+  let me = uuidv4();
+  
+  function extractUserInfo(req){
+    let src = req.body["src"];
+    if(!src)
+      throw "invalid source id";
+    let grpId = req.body["grpId"];
+    return {src,grpId};
+  }
+  
   clients.onNew(function(client){
     let grpId = client.grpId;
     function scanData(cursor, cb){
@@ -15,8 +38,8 @@ module.exports = function(app, clients, title, type, columns){
           return cb(err);
         }
         let cursor = data[0];
-        let ids = data[1].filter((d,i) => !(i%2));
-        let datas = data[1].filter((d,i) => (i%2)).map(val => JSON.parse(val));
+        let ids = data[1].filter((d,i) => (i%2) == 0);
+        let datas = data[1].filter((d,i) => (i%2) == 1).map(val => JSON.parse(val));
         datas.forEach((data,i) => data.id = ids[i]);
         datas.forEach(data => client.writeMessage({type, action:"new",id:data.id,data}));
         if(cursor == "0")
@@ -32,8 +55,8 @@ module.exports = function(app, clients, title, type, columns){
           return cb(err);
         }
         let cursor = data[0];
-        let ids = data[1].filter((d,i) => !(i%2));
-        let srcs = data[1].filter((d,i) => (i%2));
+        let ids = data[1].filter((d,i) => (i%2) == 0);
+        let srcs = data[1].filter((d,i) => (i%2) == 1);
         srcs.forEach((src,i) => client.writeMessage({type, action:"lock",id:ids[i],src}));
         if(cursor == "0")
           return cb();
@@ -54,8 +77,8 @@ module.exports = function(app, clients, title, type, columns){
           return cb(err);
         }
         let cursor = data[0];
-        let ids = data[1].filter((d,i) => !(i%2));
-        let srcs = data[1].filter((d,i) => (i%2));
+        let ids = data[1].filter((d,i) => (i%2) == 0);
+        let srcs = data[1].filter((d,i) => (i%2) == 1);
         let locks = ids.map((id,i) => ({id,src:srcs[i]}));
         locks.filter(o => o.src==client.src).forEach(function(o){
           let {src,id} = o;
@@ -75,90 +98,79 @@ module.exports = function(app, clients, title, type, columns){
     freeLock("0");
   });
   
-  function lock(req, res){
-    let src = req.body["src"];
-    let grpId = req.body["grpId"];
-    let id = req.body["id"];
-    if(!src)
-      return res.status(500).send("invalid source id");
-    redis.hset("datastore:"+grpId+":lock:"+type, id, src, (err) => {
-      if(err){
-        console.log("Reddis error: ", err);
-        return res.status(500).send(err);
-      }
-      clients.writeMessage(grpId, {type, action:"lock",id,src});
-    });
-    return res.status(200).send("ok");
+  async function lock(src, grpId, id){
+    await hset("datastore:"+grpId+":lock:"+type, id, src);
+    clients.writeMessage(grpId, {type, action:"lock",id,src});
+  }
+  
+  async function unlock(src, grpId, id){
+    await hdel("datastore:"+grpId+":lock:"+type, id);
+    clients.writeMessage(grpId, {type, action:"unlock",id,src});
+  }
+  
+  async function update(src, grpId, id, data){    
+    await hset("datastore:"+grpId+":"+type, id, JSON.stringify(data));
+    data.id = id;
+    clients.writeMessage(grpId, {type, action:"update", data, src});
+    if(src != me){
+      let report = {data};
+      report.update = () => update(me, grpId, id, report.data);
+      report.lock = () => lock(me, grpId, id);
+      report.unlock = () => unlock(me, grpId, id);
+      onUpdateFct.forEach(f => f(report));
+    }
   }
 
-  function unlock(req, res){
-    let grpId = req.body["grpId"];
-    let src = req.body["src"];
-    if(!src)
-      return res.status(500).send("invalid source id");
-    let id = req.body["id"];
-    redis.hdel("datastore:"+grpId+":lock:"+type, id, (err) => {
-      if(err){
-        console.log("Reddis error: ", err);
-        return res.status(500).send(err);
-      }
-      clients.writeMessage(grpId, {type, action:"unlock",id,src});
-    });
-    return res.status(200).send("ok");
+  async function del(src, grpId, id){
+    await hdel("datastore:"+grpId+":"+type, id);
+    clients.writeMessage(grpId, {type, action:"delete", id, src});
   }
 
-  function send(req, res){
-    let src = req.body["src"];
-    let grpId = req.body["grpId"];
+  async function lockPost(req){
+    let {src,grpId} = extractUserInfo(req);
+    await lock(src,grpId,req.body["id"]);
+  }
+
+  async function unlockPost(req){
+    let {src,grpId} = extractUserInfo(req);
+    await unlock(src,grpId,req.body["id"]);
+  }
+
+  async function sendPost(req){
+    let {src,grpId} = extractUserInfo(req);
     let data = req.body["data"];
     if(!data)
-      return res.status(500).send("need data");
+      throw "need data";
     if(!data.id)
-      return res.status(500).send("need data.id");
+      throw "need data.id";
     let id = data.id;
     delete data.id;
-    redis.hset("datastore:"+grpId+":"+type, id, JSON.stringify(data), (err) => {
-      if(err){
-        console.log("Reddis error: ", err);
-        return res.status(500).send(err);
-      }
-      data.id = id;
-      clients.writeMessage(grpId, {type, action:"update",id,src});
-      return res.status(200).send("ok");
-    });
+    await update(src,grpId,id,data);
   }
 
-  function del(req, res){
-    let src = req.body["src"];
-    let grpId = req.body["grpId"];
-    let id = req.body["id"];
-    redis.hdel("datastore:"+grpId+":"+type, id, (err, nb) => {
-      if(err)
-        return res.status(500).send(err);
-      if(!nb)
-        return res.status(500).send("unknow id");
-      clients.writeMessage(grpId, {type, action:"delete",id,src});
-      return res.status(200).send("ok");
-    });
+  async function delPost(req){
+    let {src,grpId} = extractUserInfo(req);
+    await del(src,grpId,req.body["id"]);
   }
 
   function addPost(action,fct){
     app.post("/"+type+"/"+action, function(req,res){
-      try{
-        fct(req,res);
-      }catch(err){
-        console.log(err.stack?err.stack:err,"try/catch");
-        return res.status(500).send(err.stack?err.stack:err);
-      }
+      fct(req,res)
+        .then(ret => res.status(200).send(ret))
+        .catch(err => {
+          console.log(err);
+          res.status(500).send(err);
+        });
     });
   }
-
-  addPost("lock", lock);
-  addPost("unlock", unlock);
-  addPost("send", send);
-  addPost("del", del);
+  
+  addPost("lock", lockPost);
+  addPost("unlock", unlockPost);
+  addPost("send", sendPost);
+  addPost("del", delPost);
   app.get("/"+type, function(req,res){ res.render("tableAndPopup", {title, type, columns}); });
-  return function(data){
-    redis.hset("datastore:demo:"+type, uuidv4(), JSON.stringify(data), () => {});
+  return {
+    set : (data) => redis.hset("datastore:demo:"+type, uuidv4(), JSON.stringify(data), () => {}),
+    onUpdate: fct => onUpdateFct.push(fct)
   };
 };
