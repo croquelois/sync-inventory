@@ -10,6 +10,10 @@ module.exports = function(app, clients){
     "type": {title:"Type",type:"choice:Fruit,Vegetable,Bread,Meat"}
   });
   
+  products.onUpdate(function(report){
+    console.log(report.data);
+  });
+  
   let storage = DataStore(app, clients, "Storages", "storage", {
     "name": {title:"Name",type:"string"},
     "temperature": {title:"Temperature",type:"double"},
@@ -27,27 +31,27 @@ module.exports = function(app, clients){
   
   let firstSetup = false;
   if(useInMemory || firstSetup){
-    products({name:"Banana", type:"Fruit"});
-    products({name:"Pineapple", type:"Fruit"});
-    products({name:"Apple", type:"Fruit"});
-    products({name:"Kiwi", type:"Fruit"});
-    products({name:"Potatoe", type:"Vegetable"});
-    products({name:"Bean", type:"Vegetable"});
-    products({name:"Onion", type:"Vegetable"});
-    products({name:"Salad", type:"Vegetable"});
-    products({name:"Chicken", type:"Meat"});
-    products({name:"Beef", type:"Meat"});
-    products({name:"Lamb", type:"Meat"});
-    products({name:"White Bread", type:"Bread"});
-    products({name:"Brown Bread", type:"Bread"});
-    storage({name:"Freezer", temperature:"0"});
-    storage({name:"Room A", temperature:"10"});
-    storage({name:"Room B", temperature:"20"});
-    item({product:"Banana",storage:"Room A", amount: "5", expiration: "2018-07-20"});
-    item({product:"Bean",storage:"Room A", amount: "42", expiration: "2018-07-10"});
-    item({product:"Chicken",storage:"Freezer", amount: "3", expiration: "2018-07-15"});
-    item({product:"Lamb",storage:"Freezer", amount: "2", expiration: "2018-08-20"});
-    item({product:"Apple",storage:"Room A", amount: "3", expiration: "2018-09-20"});
-    item({product:"Onion",storage:"Room A", amount: "7", expiration: "2018-07-15"});
+    products.set({name:"Banana", type:"Fruit"});
+    products.set({name:"Pineapple", type:"Fruit"});
+    products.set({name:"Apple", type:"Fruit"});
+    products.set({name:"Kiwi", type:"Fruit"});
+    products.set({name:"Potatoe", type:"Vegetable"});
+    products.set({name:"Bean", type:"Vegetable"});
+    products.set({name:"Onion", type:"Vegetable"});
+    products.set({name:"Salad", type:"Vegetable"});
+    products.set({name:"Chicken", type:"Meat"});
+    products.set({name:"Beef", type:"Meat"});
+    products.set({name:"Lamb", type:"Meat"});
+    products.set({name:"White Bread", type:"Bread"});
+    products.set({name:"Brown Bread", type:"Bread"});
+    storage.set({name:"Freezer", temperature:"0"});
+    storage.set({name:"Room A", temperature:"10"});
+    storage.set({name:"Room B", temperature:"20"});
+    item.set({product:"Banana",storage:"Room A", amount: "5", expiration: "2018-07-20"});
+    item.set({product:"Bean",storage:"Room A", amount: "42", expiration: "2018-07-10"});
+    item.set({product:"Chicken",storage:"Freezer", amount: "3", expiration: "2018-07-15"});
+    item.set({product:"Lamb",storage:"Freezer", amount: "2", expiration: "2018-08-20"});
+    item.set({product:"Apple",storage:"Room A", amount: "3", expiration: "2018-09-20"});
+    item.set({product:"Onion",storage:"Room A", amount: "7", expiration: "2018-07-15"});
   }
 };
