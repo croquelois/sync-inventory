@@ -159,6 +159,6 @@ module.exports = function(app, clients, title, type, columns){
   addPost("del", del);
   app.get("/"+type, function(req,res){ res.render("tableAndPopup", {title, type, columns}); });
   return function(data){
-    redis.hset("datastore:"+type, uuidv4(), JSON.stringify(data), () => {});
+    redis.hset("datastore:demo:"+type, uuidv4(), JSON.stringify(data), () => {});
   };
 };

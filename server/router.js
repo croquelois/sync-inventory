@@ -1,6 +1,6 @@
 /* jshint esversion:6, node:true, loopfunc:true, undef: true, unused: true, sub:true */
 "use strict";
-const useInMemory = true;
+const useInMemory = false;
 let DataStore = require(useInMemory ? "./DataStoreLocal" : "./DataStore");
 
 module.exports = function(app, clients){
