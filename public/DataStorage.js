@@ -37,7 +37,9 @@ function DataStorage(url, messageListener, itemtype, table, popup, newBtn ,map){
       let div = $(this);
       let text = div.text();
       div.empty();
-
+      let input;
+      let paramAutocomplete;
+      
       let type = div.attr("data-type");
       if(type.slice(0,7) == "choice:"){
         /*
@@ -50,33 +52,33 @@ function DataStorage(url, messageListener, itemtype, table, popup, newBtn ,map){
         a.dropdown({});
         //ul.detach().appendTo($("body")).css("z-index", popup.css("z-index")+1);*/
 
-        let s = $("<select>").addClass("browser-default");
-        type.slice(7).split(",").forEach(item => s.append($("<option>").text(item)));
-        div.append(s);
+        input = $("<select>").addClass("browser-default");
+        type.slice(7).split(",").forEach(item => input.append($("<option>").text(item)));
       }else if(type.slice(0,4) == "ref:"){
         let tmp = /^ref\:([^\.]*)\.(.+)$/.exec(type);
-        let s = $("<input>").val(text);
-        div.append(s);
-        if(tmp)
-          s.autocomplete({
+        input = $("<input>").val(text);
+        if(tmp){
+          paramAutocomplete = {
             data: autocomplete[tmp[1]](tmp[2]),
             limit: 20
-          });
+          };
+        }
       }else if(type == "percent"){
-        let input = $("<input>").val(text);
-        div.append(input);
+        input = $("<input>").val(text);
         input.change(() => input.val((idx, old) => old.replace(/[^\-0-9\.]/g, '') + '%'));
       }else if(type == "double"){
-        let input = $("<input>").val(text);
-        div.append(input);
+        input = $("<input>").val(text);
         input.change(() => input.val((idx, old) => old.replace(/[^\-0-9\.]/g, '')));
       }else if(type == "integer"){
-        let input = $("<input>").val(text);
-        div.append(input);
+        input = $("<input>").val(text);
         input.change(() => input.val((idx, old) => old.replace(/[^\-0-9]/g, '')));
       }else{
-        div.append($("<input>").val(text));
+        input = $("<input>").val(text);
       }
+      input.prop('readonly', div.hasClass("readonly"));
+      div.append(input);
+      if(paramAutocomplete) 
+        input.autocomplete(paramAutocomplete);
     });
   }
 

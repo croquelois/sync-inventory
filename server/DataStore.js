@@ -1,12 +1,19 @@
 /* jshint esversion:9, node:true, loopfunc:true, undef: true, unused: true, sub:true */
 "use strict";
 const uuidv4 = require('uuid/v4');
+const Mutex = require('./Mutex');
 let redis = require('redis').createClient();
 redis.on("error", err => console.log(err));
 
 function hset(hash, key, val){
   return new Promise(function(resolve, reject){
     redis.hset(hash, key, val, (err) => err ? reject(err) : resolve());
+  });
+}
+
+function hget(hash, key){
+  return new Promise(function(resolve, reject){
+    redis.hget(hash, key, (err,res) => err ? reject(err) : resolve(JSON.parse(res)));
   });
 }
 
@@ -19,6 +26,7 @@ function hdel(hash, key){
 module.exports = function(app, clients, title, type, columns){
   let onUpdateFct = [];
   let me = uuidv4();
+  let mutex = new Mutex();
   
   function extractUserInfo(req){
     let src = req.body["src"];
@@ -108,13 +116,33 @@ module.exports = function(app, clients, title, type, columns){
     clients.writeMessage(grpId, {type, action:"unlock",id,src});
   }
   
-  async function update(src, grpId, id, data){    
-    await hset("datastore:"+grpId+":"+type, id, JSON.stringify(data));
+  async function update(src, grpId, id, data){
+    Object.keys(data).forEach(key => {
+      if(!columns[key] || (columns[key].opt && columns[key].readonly))
+        delete data[key];
+    });
+    let unlock = await mutex.lock();
+    try {
+      let oldData = await hget("datastore:"+grpId+":"+type, id);
+      if(!oldData){
+        Object.keys(columns).forEach(key => {
+          if(data[key] === undefined && columns[key].opt && columns[key].default)
+            data[key] = (columns[key].default || "");
+        });
+      }else{
+        Object.keys(columns).filter(key => data[key] === undefined).forEach(key => data[key] = oldData[key]);
+      }
+      await hset("datastore:"+grpId+":"+type, id, JSON.stringify(data));
+    }catch(ex){
+      unlock();
+      throw ex;
+    }
+    unlock();
     data.id = id;
-    clients.writeMessage(grpId, {type, action:"update", data, src});
+    clients.writeMessage(grpId, {type, action:"update", id, data, src});
     if(src != me){
       let report = {data};
-      report.update = () => update(me, grpId, id, report.data);
+      report.update = (data) => update(me, grpId, id, data);
       report.lock = () => lock(me, grpId, id);
       report.unlock = () => unlock(me, grpId, id);
       onUpdateFct.forEach(f => f(report));
