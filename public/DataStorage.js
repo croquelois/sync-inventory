@@ -199,17 +199,21 @@ function DataStorage(url, messageListener, itemtype, table, popup, newBtn ,map){
       inPopup.data.id = inPopup.id = id;
       messageSender.send(inPopup.data, function(err){
         if(err) return unblockWithError(err);
-        let tr = inPopup.tr = $("<tr>").attr("id",inPopup.id);
-        tr.click(clickOnCell);
-        store[id] = inPopup;
-        updateRow(inPopup);
-        body.append(tr);
-        messageSender.unlock(inPopup.id,function(err){
-          if(err) return unblockWithError(err);
-          input2div();
-          unblock();
-          popup.modal('close');
-        });
+        let info = store[id];
+        let tr = info && info.tr;
+        if(!info && data){
+          tr = $("<tr>").attr("id",id);
+          body.append(tr);
+          tr.click(clickOnCell);
+          info = store[id] = {id:id,tr};
+          inPopup.tr = tr;
+          updateRow(inPopup);
+        }else{
+          inPopup.tr = tr;
+        }
+        input2div();
+        unblock();
+        popup.modal('close');
       });
     });
   }
@@ -279,7 +283,7 @@ function DataStorage(url, messageListener, itemtype, table, popup, newBtn ,map){
   });
 
   messageListener.listen(itemtype, function(action,id,data,lock) {
-    console.log(action, id, data, lock);
+    //console.log(action, id, data, lock);
     let info = store[id];
     let tr = info && info.tr;
     if(!info && data){
