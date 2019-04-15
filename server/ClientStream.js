@@ -65,6 +65,6 @@ module.exports = function(app){
       return res.status(500).send(err.stack?err.stack:err);
     }
   });
-  app.get("/id", (req,res) => res.status(200).send({id:uuidv4()}));
+  app.get("/id", (req,res) => res.status(200).send(uuidv4()));
   return clients;
 };

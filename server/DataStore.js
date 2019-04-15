@@ -6,12 +6,14 @@ let redis = require('redis').createClient();
 redis.on("error", err => console.log(err));
 
 function hset(hash, key, val){
+  console.log(key,val);
   return new Promise(function(resolve, reject){
     redis.hset(hash, key, val, (err) => err ? reject(err) : resolve());
   });
 }
 
 function hget(hash, key){
+  console.log(key);
   return new Promise(function(resolve, reject){
     redis.hget(hash, key, (err,res) => err ? reject(err) : resolve(JSON.parse(res)));
   });
