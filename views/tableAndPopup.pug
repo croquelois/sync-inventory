@@ -8,7 +8,7 @@ html
         each val, key in columns
           .row
             .col.s6= val.title
-            .col.s6(data-field=key,data-type=val.type)
+            .col.s6(data-field=key,data-type=val.type,class=(val.opt && val.opt.readonly) ? "readonly" : "")
       .modal-footer
         button#cancel.modal-action.waves-effect.btn-flat Cancel
         button#ok.modal-action.waves-effect.btn-flat.modal-close Ok

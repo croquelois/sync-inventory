@@ -10,19 +10,31 @@ module.exports = function(app, clients){
     "type": {title:"Type",type:"choice:Fruit,Vegetable,Bread,Meat"}
   });
   
-  products.onUpdate(function(report){
-    console.log(report.data);
-  });
-  
   let storage = DataStore(app, clients, "Storages", "storage", {
     "name": {title:"Name",type:"string"},
     "temperature": {title:"Temperature",type:"double"},
-    "availability": {title:"Availability",type:"percent"},
+    "availability": {title:"Availability",type:"percent", opt:{readonly:"true"}},
+  });
+  
+  storage.onUpdate(function(report){
+    console.log(report.data);
+    if(!report.data["availability"]){
+      let pct = 1;
+      report.update({availability: (pct*100).toFixed(0)+"%"});
+      let reduceAvailability = function(){
+        pct -= 0.1;
+        if(pct < 1e-5)
+          pct = 0;
+        report.update({availability: (pct*100).toFixed(0)+"%"});
+        if(pct > 0) setTimeout(reduceAvailability, 1000);
+      };
+      setTimeout(reduceAvailability, 1000);
+    }
   });
   
   let item = DataStore(app, clients, "Items", "item", {
-    "product": {title:"Product",type:"ref:product"},
-    "storage": {title:"Storage",type:"ref:storage"},
+    "product": {title:"Product",type:"ref:product.name"},
+    "storage": {title:"Storage",type:"ref:storage.name"},
     "amount": {title:"Amount",type:"integer"},
     "expiration": {title:"Expiration date",type:"string"},
   });

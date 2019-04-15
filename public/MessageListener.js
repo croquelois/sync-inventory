@@ -23,9 +23,9 @@ class MessageListener {
   }
   init(){
     return new Promise((resolve, reject) => {
-      $.get("/id").done(data => {
+      $.get("/id").done(id => {
         this.initialised = true;
-        this.id = data.id;
+        this.id = id;
         resolve(); 
       }).fail(reject);
     });

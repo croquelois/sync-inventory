@@ -43,14 +43,26 @@ module.exports = function(app, clients, title, type, columns){
   }
   
   async function update(src, grpId, id, data){
-    if(!db[id])
-      db[id] = {grpId, id, data,lock:false};
-    else
+    Object.keys(data).forEach(key => {
+      if(!columns[key] || (columns[key].opt && columns[key].readonly))
+        delete data[key];
+    });
+    data.id = id;
+    if(!db[id]){
+      Object.keys(columns).forEach(key => {
+        if(data[key] === undefined && columns[key].opt && columns[key].default)
+          data[key] = (columns[key].default || "");
+      });
+      db[id] = {grpId, id, data, lock:false};
+    }else{
+      Object.keys(columns).filter(key => data[key] === undefined).forEach(key => data[key] = db[id].data[key]);
       db[id].data = data;
-    clients.writeMessage(grpId, {type, action:"update", data, src});
+    }
+    console.log(data);
+    clients.writeMessage(grpId, {type, action:"update", id, data, src});
     if(src != me){
       let report = {data};
-      report.update = () => update(me, grpId, id, report.data);
+      report.update = (data) => update(me, grpId, id, data);
       report.lock = () => lock(me, grpId, id);
       report.unlock = () => unlock(me, grpId, id);
       onUpdateFct.forEach(f => f(report));
