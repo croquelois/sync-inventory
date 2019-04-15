@@ -13,7 +13,7 @@ module.exports = function(app, clients){
   let storage = DataStore(app, clients, "Storages", "storage", {
     "name": {title:"Name",type:"string"},
     "temperature": {title:"Temperature",type:"double"},
-    "availability": {title:"Availability",type:"percent", opt:{readonly:"true"}},
+    "availability": {title:"Availability",type:"percent", opt:{readonly:"true",default:"100%"}}
   });
   
   storage.onUpdate(function(report){
@@ -37,6 +37,7 @@ module.exports = function(app, clients){
     "storage": {title:"Storage",type:"ref:storage.name"},
     "amount": {title:"Amount",type:"integer"},
     "expiration": {title:"Expiration date",type:"string"},
+    "enterDate": {title:"Enter date",type:"datetime", opt:{readonly:"true",default:()=>(new Date()).toISOString()}},
   });
 
   app.get('*', function(req, res){ res.status(404).send({ title: 'Page Not Found'}); });

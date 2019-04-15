@@ -15,6 +15,31 @@ module.exports = function(app, clients, title, type, columns){
     return {src,grpId};
   }
   
+  function removeUnexpectedKey(data){
+    Object.keys(data).forEach(key => {
+      if(!columns[key] || (columns[key].opt && columns[key].opt.readonly))
+        delete data[key];
+    });
+  }
+  
+  function addDefaultValue(data){
+    Object.keys(columns).forEach(key => {
+      if(data[key] === undefined || data[key] == ""){
+        let dflt = (columns[key].opt||{}).default;
+        if(dflt === undefined)
+          data[key] = "";
+        else if(typeof(dflt) == "function")
+          data[key] = dflt();
+        else
+          data[key] = dflt;
+      }
+    });
+  }
+  
+  function fillWithPreviousValue(prevData, data){
+    Object.keys(columns).filter(key => data[key] === undefined).forEach(key => data[key] = prevData[key]);
+  }
+  
   clients.onNew(function(client){
     let grpItem = Object.keys(db).map(key => db[key]).filter(val => val.grpId == client.grpId);
     grpItem.forEach(val => client.writeMessage({type, action:"new",id:val.id,data:val.data,lock:val.lock}));
@@ -41,24 +66,18 @@ module.exports = function(app, clients, title, type, columns){
     db[id].lock = false;
     clients.writeMessage(grpId, {type, action:"unlock",id,src});
   }
-  
+    
   async function update(src, grpId, id, data){
-    Object.keys(data).forEach(key => {
-      if(!columns[key] || (columns[key].opt && columns[key].readonly))
-        delete data[key];
-    });
+    if(src != me)
+      removeUnexpectedKey(data);
     data.id = id;
     if(!db[id]){
-      Object.keys(columns).forEach(key => {
-        if(data[key] === undefined && columns[key].opt && columns[key].default)
-          data[key] = (columns[key].default || "");
-      });
+      addDefaultValue(data);
       db[id] = {grpId, id, data, lock:false};
     }else{
-      Object.keys(columns).filter(key => data[key] === undefined).forEach(key => data[key] = db[id].data[key]);
+      fillWithPreviousValue(db[id].data, data);
       db[id].data = data;
     }
-    console.log(data);
     clients.writeMessage(grpId, {type, action:"update", id, data, src});
     if(src != me){
       let report = {data};

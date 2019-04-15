@@ -36,7 +36,7 @@ class MessageListener {
     this.started = true;
     (new EventSource("/" + this.grpId + "/stream?src=" + this.id)).addEventListener('message', e => {
       let data = JSON.parse(e.data);
-      if(data.src == this.id) 
+      if(data.src == this.id && data.action != "new" && data.action != "update")
         return;
       if(!this.listeners[data.type])
         return;

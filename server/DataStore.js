@@ -36,6 +36,31 @@ module.exports = function(app, clients, title, type, columns){
     return {src,grpId};
   }
   
+  function removeUnexpectedKey(data){
+    Object.keys(data).forEach(key => {
+      if(!columns[key] || (columns[key].opt && columns[key].opt.readonly))
+        delete data[key];
+    });
+  }
+  
+  function addDefaultValue(data){
+    Object.keys(columns).forEach(key => {
+      if(data[key] === undefined || data[key] == ""){
+        let dflt = (columns[key].opt||{}).default;
+        if(dflt === undefined)
+          data[key] = "";
+        else if(typeof(dflt) == "function")
+          data[key] = dflt();
+        else
+          data[key] = dflt;
+      }
+    });
+  }
+  
+  function fillWithPreviousValue(prevData, data){
+    Object.keys(columns).filter(key => data[key] === undefined).forEach(key => data[key] = prevData[key]);
+  }
+  
   clients.onNew(function(client){
     let grpId = client.grpId;
     function scanData(cursor, cb){
@@ -117,21 +142,15 @@ module.exports = function(app, clients, title, type, columns){
   }
   
   async function update(src, grpId, id, data){
-    Object.keys(data).forEach(key => {
-      if(!columns[key] || (columns[key].opt && columns[key].readonly))
-        delete data[key];
-    });
+    if(src != me)
+      removeUnexpectedKey(data);
     let unlock = await mutex.lock();
     try {
       let oldData = await hget("datastore:"+grpId+":"+type, id);
-      if(!oldData){
-        Object.keys(columns).forEach(key => {
-          if(data[key] === undefined && columns[key].opt && columns[key].default)
-            data[key] = (columns[key].default || "");
-        });
-      }else{
-        Object.keys(columns).filter(key => data[key] === undefined).forEach(key => data[key] = oldData[key]);
-      }
+      if(!oldData)
+        addDefaultValue(data);
+      else
+        fillWithPreviousValue(oldData, data);
       await hset("datastore:"+grpId+":"+type, id, JSON.stringify(data));
     }catch(ex){
       unlock();
