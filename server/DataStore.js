@@ -23,18 +23,10 @@ function hdel(hash, key){
   });
 }
 
-module.exports = function(app, clients, title, type, columns){
+module.exports = function(app, extractUserInfo, clients, type, columns){
   let onUpdateFct = [];
   let me = uuidv4();
   let mutex = new Mutex();
-  
-  function extractUserInfo(req){
-    let src = req.body["src"];
-    if(!src)
-      throw "invalid source id";
-    let grpId = req.body["grpId"];
-    return {src,grpId};
-  }
   
   function removeUnexpectedKey(data){
     Object.keys(data).forEach(key => {
@@ -215,7 +207,6 @@ module.exports = function(app, clients, title, type, columns){
   addPost("unlock", unlockPost);
   addPost("send", sendPost);
   addPost("del", delPost);
-  app.get("/"+type, function(req,res){ res.render("tableAndPopup", {title, type, columns}); });
   return {
     set : (data) => redis.hset("datastore:demo:"+type, uuidv4(), JSON.stringify(data), () => {}),
     onUpdate: fct => onUpdateFct.push(fct)

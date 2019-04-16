@@ -4,16 +4,27 @@ const useInMemory = false;
 let DataStore = require(useInMemory ? "./DataStoreLocal" : "./DataStore");
 
 module.exports = function(app, clients){
+  function extractUserInfo(req){
+    let src = req.body["src"];
+    if(!src)
+      throw "invalid source id";
+    let grpId = req.body["grpId"];
+    return {src,grpId};
+  }
+  function createDataStore(title, type, columns){
+    app.get("/"+type, (req,res) => res.render("tableAndPopup", {title, type, columns}));
+    return DataStore(app, extractUserInfo, clients, type, columns);
+  }
   
-  let products = DataStore(app, clients, "Products", "product", {
+  let products = createDataStore("Product", "product", {
     "name": {title:"Name",type:"string"},
     "type": {title:"Type",type:"choice:Fruit,Vegetable,Bread,Meat"}
   });
   
-  let storage = DataStore(app, clients, "Storages", "storage", {
+  let storage = createDataStore("Storage", "storage", {
     "name": {title:"Name",type:"string"},
     "temperature": {title:"Temperature",type:"double"},
-    "availability": {title:"Availability",type:"percent", opt:{readonly:"true",default:"100%"}}
+    "availability": {title:"Availability",type:"percent", opt:{readonly:"true"}}
   });
   
   storage.onUpdate(function(report){
@@ -32,7 +43,7 @@ module.exports = function(app, clients){
     }
   });
   
-  let item = DataStore(app, clients, "Items", "item", {
+  let item = createDataStore("Items", "item", {
     "product": {title:"Product",type:"ref:product.name"},
     "storage": {title:"Storage",type:"ref:storage.name"},
     "amount": {title:"Amount",type:"integer"},
