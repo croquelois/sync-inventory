@@ -18,18 +18,18 @@ function wrapFail(cb){
 }
 
 class MessageSender {
-  constructor(srcId, grpId, url){
+  constructor(credential, url){
     this.url = url || "";
-    this.srcId = srcId;
-    this.grpId = grpId;
+    this.credential = credential;
   }
 
   send(data, cb){
     //cb = fakeDelayCb(cb);
+    let req = this.credential.applyBody({data});
     $.ajax({
       type: "POST",
       url: this.url + "/send",
-      data: JSON.stringify({data,src:this.srcId,grpId:this.grpId}),
+      data: JSON.stringify(req),
       contentType: "application/json; charset=UTF-8",
       processData: false
     }).done(ret => cb(null,ret)).fail(wrapFail(cb));
@@ -37,10 +37,11 @@ class MessageSender {
 
   remove(id, cb){
     //cb = fakeDelayCb(cb);
+    let req = this.credential.applyBody({id});
     $.ajax({
       type: "POST",
       url: this.url + "/del",
-      data: JSON.stringify({id,src:this.srcId,grpId:this.grpId}),
+      data: JSON.stringify(req),
       contentType: "application/json; charset=UTF-8",
       processData: false
     }).done(ret => cb(null,ret)).fail(wrapFail(cb));
@@ -53,10 +54,11 @@ class MessageSender {
   
   lock(id, cb){
     //cb = fakeDelayCb(cb);
+    let req = this.credential.applyBody({id});
     $.ajax({
       type: "POST",
       url: this.url + "/lock",
-      data: JSON.stringify({id,src:this.srcId,grpId:this.grpId}),
+      data: JSON.stringify(req),
       contentType: "application/json; charset=UTF-8",
       processData: false
     }).done(ret => cb(null,ret)).fail(wrapFail(cb));
@@ -64,10 +66,11 @@ class MessageSender {
 
   unlock(id, cb){
     //cb = fakeDelayCb(cb);
+    let req = this.credential.applyBody({id});
     $.ajax({
       type: "POST",
       url: this.url + "/unlock",
-      data: JSON.stringify({id,src:this.srcId,grpId:this.grpId}),
+      data: JSON.stringify(req),
       contentType: "application/json; charset=UTF-8",
       processData: false
     }).done(ret => cb(null,ret)).fail(wrapFail(cb));

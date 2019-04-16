@@ -1,16 +1,14 @@
 /* jshint esversion:6, node:true, loopfunc:true, undef: true, unused: true, sub:true */
 "use strict";
 
-let express = require('express');
-let bodyParser = require('body-parser');
-let http = require('http');
-let path = require('path');
-let config = require('./config');
+const express = require('express');
+const bodyParser = require('body-parser');
+const http = require('http');
+const path = require('path');
+const ClientStream = require('./server/ClientStream');
 
 let app = express();
-
-// all environments
-app.set('port', config.port || 80);
+app.set('port', 8086);
 app.set('view engine', 'pug');
 app.use(bodyParser.json());
 app.use(function (error, req, res, next) {
@@ -23,7 +21,7 @@ app.use(function (error, req, res, next) {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
-let clients = require('./server/ClientStream')(app);
+let clients = ClientStream(app,"/:grpId/stream",req => ({src: req.query["src"], grpId: req.params["grpId"]}));
 require('./server/router')(app, clients);
 
 http.createServer(app).listen(app.get('port'), function(){

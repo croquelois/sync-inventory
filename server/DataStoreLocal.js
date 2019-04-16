@@ -2,18 +2,10 @@
 "use strict";
 const uuidv4 = require('uuid/v4');
 
-module.exports = function(app, clients, title, type, columns){
+module.exports = function(app, extractUserInfo, clients, type, columns){
   let db = {};
   let onUpdateFct = [];
   let me = uuidv4();
-  
-  function extractUserInfo(req){
-    let src = req.body["src"];
-    if(!src)
-      throw "invalid source id";
-    let grpId = req.body["grpId"];
-    return {src,grpId};
-  }
   
   function removeUnexpectedKey(data){
     Object.keys(data).forEach(key => {
@@ -137,7 +129,6 @@ module.exports = function(app, clients, title, type, columns){
   addPost("unlock", unlockPost);
   addPost("send", sendPost);
   addPost("del", delPost);
-  app.get("/"+type, function(req,res){ res.render("tableAndPopup", {title, type, columns}); });
   return {
     set : (data) => {
       data.id = uuidv4();

@@ -3,14 +3,14 @@
 const uuidv4 = require('uuid/v4');
 
 class Client {
-  constructor(req, res){
+  constructor(req, res, src, grpId){
     req.socket.setTimeout(24*60*60*1000);
     this.messageCount = 0;
     this.write = res.write.bind(res);
     this.alive = true;
     req.on("close", () => this.alive = false);
-    this.src = req.query["src"];
-    this.grpId = req.params["grpId"];
+    this.src = src;
+    this.grpId = grpId;
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -29,7 +29,8 @@ class Client {
 }
 
 class Clients {
-  constructor(){
+  constructor(extractUserInfo){
+    this.extractUserInfo = extractUserInfo;
     this.clients = {};
     this.onNewCb = [];
     this.onCloseCb = [];
@@ -41,7 +42,8 @@ class Clients {
     this.onCloseCb.push(fct);
   }
   newStream(req,res){
-    let client = new Client(req,res);
+    let {src,grpId} = this.extractUserInfo(req);
+    let client = new Client(req,res,src,grpId);
     if(!this.clients[client.grpId])
       this.clients[client.grpId] = [];
     this.clients[client.grpId].push(client);
@@ -55,9 +57,9 @@ class Clients {
   }
 }
 
-module.exports = function(app){
-  let clients = new Clients();  
-  app.get("/:grpId/stream", function(req,res){
+module.exports = function(app,url,extractUserInfo){
+  let clients = new Clients(extractUserInfo);  
+  app.get(url, function(req,res){
     try{
       clients.newStream(req,res);
     }catch(err){

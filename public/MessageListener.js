@@ -5,9 +5,9 @@ let MessageListener = (function(){
 "use strict";
 
 class MessageListener {
-  constructor(grpId){
+  constructor(credential){
     this.listeners = {};
-    this.grpId = grpId;
+    this.credential = credential;
     this.id = null;
     this.started = false;
     this.initialised = false;
@@ -26,6 +26,7 @@ class MessageListener {
       $.get("/id").done(id => {
         this.initialised = true;
         this.id = id;
+        this.credential.setSourceId(id);
         resolve(); 
       }).fail(reject);
     });
@@ -34,7 +35,7 @@ class MessageListener {
     if(!this.initialised)
       throw new Error("it should be called after the call to init");
     this.started = true;
-    (new EventSource("/" + this.grpId + "/stream?src=" + this.id)).addEventListener('message', e => {
+    (new EventSource(this.credential.applyUrl("stream?src=" + this.id))).addEventListener('message', e => {
       let data = JSON.parse(e.data);
       if(data.src == this.id && data.action != "new" && data.action != "update")
         return;

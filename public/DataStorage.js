@@ -19,7 +19,7 @@ function DataStorage(url, messageListener, itemtype, table, popup, newBtn ,map){
   let autocomplete = {};
   map = map || ((data,h,v) => (v===undefined?data[h]:data[h]=v));
   body.empty();
-  let messageSender = new MessageSender(messageListener.id, messageListener.grpId, url + "/" + itemtype);
+  let messageSender = new MessageSender(messageListener.credential, url + "/" + itemtype);
 
   function error(msg){
     Materialize.toast('error: ' + msg, 3000, 'rounded red');
@@ -201,7 +201,7 @@ function DataStorage(url, messageListener, itemtype, table, popup, newBtn ,map){
         if(err) return unblockWithError(err);
         let info = store[id];
         let tr = info && info.tr;
-        if(!info && data){
+        if(!info){
           tr = $("<tr>").attr("id",id);
           body.append(tr);
           tr.click(clickOnCell);
